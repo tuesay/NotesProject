@@ -29,9 +29,10 @@ class NoteEdit(QDialog, Ui_noteEdit):
             con = sqlite3.connect('note.sqlite')
             cur = con.cursor()
 
-            self.noteName.setReadOnly(True)
             self.noteName.setText(self.name)
             self.noteText.setText(cur.execute("SELECT text FROM notes WHERE name = ?", (self.name,)).fetchone()[0])
+
+            con.close()
 
 
     def show_place(self):
@@ -51,23 +52,28 @@ class NoteEdit(QDialog, Ui_noteEdit):
 
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
-        try:
-            if self.name is None:
-
+        if self.name is None:
+            try:
                 cur.execute("INSERT INTO notes(name, text) VALUES(?, ?)", (name, text))
+                con.commit()
+                con.close()
+            except sqlite3.IntegrityError:
+                name = name + '~'
+                cur.execute("INSERT INTO notes(name, text) VALUES(?, ?)", (name, text))
+                con.commit()
+                con.close()
+        else:
+            try:
+                cur.execute("UPDATE notes SET name = ?, text = ? WHERE name = ?", (name, text, self.name))
+                con.commit()
+                con.close()
+            except sqlite3.IntegrityError:
+                name = name + '~'
+                cur.execute("UPDATE notes SET name = ?, text = ? WHERE name = ?", (name, text, self.name))
+                con.commit()
+                con.close()
 
-            else:
-
-                cur.execute("UPDATE notes SET text = ?", (text, ))
-
-        except sqlite3.IntegrityError:
-            name_unique = QErrorMessage.exec(self)
-
-
-        con.commit()
-        con.close()
         self.close()
-        return name
 
     def note_cancel(self):
         self.close()

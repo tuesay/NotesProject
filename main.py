@@ -20,8 +20,6 @@ class Notes(QMainWindow, Ui_Notes):
         self.list_update()
 
     def initUi(self):
-        self.createNote.clicked.connect(self.note_creation)
-        self.refreshButton.clicked.connect(self.list_update)
         self.noteList.doubleClicked.connect(self.note_redaction)
 
         self.list_context_menu()
@@ -32,27 +30,33 @@ class Notes(QMainWindow, Ui_Notes):
 
     def show_context(self, pos):
         global_pos = self.noteList.mapToGlobal(pos)
-
         index = self.noteList.indexAt(pos)
+
         if not index.isValid():
-            return
+            context_menu = QMenu()
+            create_action = QAction('Создать', self)
+            create_action.triggered.connect(self.note_creation)
+            context_menu.addAction(create_action)
+            context_menu.exec(global_pos)
+        else:
+            context_menu = QMenu()
+            delete_action = QAction('Удалить', self)
+            edit_action = QAction('Редактировать', self)
 
-        self.context_menu = QMenu()
+            delete_action.triggered.connect(self.note_delete)
+            edit_action.triggered.connect(self.note_redaction)
 
-        delete = QAction('Удалить', self)
-        edit = QAction('Редактировать', self)
-
-        delete.triggered.connect(self.note_delete)
-        edit.triggered.connect(self.note_redaction)
-
-        self.context_menu.addAction(delete)
-        self.context_menu.addAction(edit)
-
-        self.context_menu.exec(global_pos)
+            context_menu.addActions([delete_action, edit_action])
+            context_menu.exec(global_pos)
 
 
     def note_delete(self):
-        pass
+        name = self.noteList.currentItem().text()
+        con = sqlite3.connect('note.sqlite')
+        con.cursor().execute("DELETE FROM notes WHERE name = ?", (name,))
+        con.commit()
+        con.close()
+        self.list_update()
 
     def list_update(self):
         self.noteList.clear()
@@ -66,13 +70,13 @@ class Notes(QMainWindow, Ui_Notes):
     def note_creation(self):
         dialog = NoteEdit()
         dialog.exec()
-        print(dialog.note_save())
+        self.list_update()
 
     def note_redaction(self):
         name = self.noteList.currentItem().text()
         dialog = NoteEdit(name)
         dialog.exec()
-
+        self.list_update()
 
 
 def except_hook(cls, exception, traceback):
