@@ -47,7 +47,7 @@
      </widget>
     </item>
     <item row="2" column="3">
-     <widget class="QComboBox" name="comboBox"/>
+     <widget class="QComboBox" name="tagSelect"/>
     </item>
     <item row="3" column="0" rowspan="2" colspan="4">
      <widget class="QListWidget" name="noteList">
@@ -57,11 +57,6 @@
         <height>0</height>
        </size>
       </property>
-      <item>
-       <property name="text">
-        <string>Главная</string>
-       </property>
-      </item>
      </widget>
     </item>
     <item row="0" column="0" colspan="2">
@@ -90,6 +85,13 @@
         <string>Дата изменения</string>
        </property>
       </item>
+     </widget>
+    </item>
+    <item row="0" column="2">
+     <widget class="QPushButton" name="refreshButton">
+      <property name="text">
+       <string>Обновить</string>
+      </property>
      </widget>
     </item>
    </layout>
