@@ -71,6 +71,7 @@ class Notes(QMainWindow, Ui_Notes):
         self.refreshButton.clicked.connect(self.list_update)
 
     def list_update(self):
+        self.noteList.clear()
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
         ids = cur.execute("SELECT id FROM notes").fetchall()
