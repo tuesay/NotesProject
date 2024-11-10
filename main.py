@@ -1,60 +1,13 @@
 import sys
 import sqlite3
 
-from noteEditUi import Ui_noteEdit
+from PyQt6.QtGui import QAction
 
+from noteEdit import NoteEdit
 from notesUi import Ui_Notes
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QListWidget, QListWidgetItem
-
-
-class NoteEdit(QDialog, Ui_noteEdit):
-    def __init__(self):
-        super().__init__()
-
-        self.setupUi(self)
-
-        self.initUi()
-
-    def initUi(self):
-
-        self.showImgPlace.clicked.connect(self.show_place)
-        self.imageAdd.hide()
-        self.imageDisplay.hide()
-
-        self.noteSave.clicked.connect(self.note_save)
-        self.noteCancel.clicked.connect(self.note_cancel)
-
-    def show_place(self):
-        if self.showImgPlace.text() == '>>>':
-            self.imageAdd.show()
-            self.imageDisplay.show()
-            self.showImgPlace.setText('<<<')
-
-        elif self.showImgPlace.text() == '<<<':
-            self.imageAdd.hide()
-            self.imageDisplay.hide()
-            self.showImgPlace.setText('>>>')
-
-    def note_save(self):
-        name = self.noteName.text()
-        text = self.noteText.toPlainText()
-
-        con = sqlite3.connect('note.sqlite')
-        cur = con.cursor()
-
-        if len(cur.execute("SELECT name FROM notes WHERE name = ?", (name, )).fetchall()) > 1:
-            cur.execute("UPDATE notes SET name = ?, text = ?", (name, text))
-
-        elif name != cur.execute("SELECT name FROM notes WHERE name = ?", (name, )).fetchone():
-            cur.execute("INSERT INTO notes(name, text) VALUES(?, ?)", (name, text))
-
-        con.commit()
-        con.close()
-        self.close()
-
-    def note_cancel(self):
-        self.close()
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QMainWindow, QListWidget, QListWidgetItem, QMenu
 
 
 class Notes(QMainWindow, Ui_Notes):
@@ -69,6 +22,37 @@ class Notes(QMainWindow, Ui_Notes):
     def initUi(self):
         self.createNote.clicked.connect(self.note_creation)
         self.refreshButton.clicked.connect(self.list_update)
+        self.noteList.doubleClicked.connect(self.note_redaction)
+
+        self.list_context_menu()
+
+    def list_context_menu(self):
+        self.noteList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.noteList.customContextMenuRequested.connect(self.show_context)
+
+    def show_context(self, pos):
+        global_pos = self.noteList.mapToGlobal(pos)
+
+        index = self.noteList.indexAt(pos)
+        if not index.isValid():
+            return
+
+        self.context_menu = QMenu()
+
+        delete = QAction('Удалить', self)
+        edit = QAction('Редактировать', self)
+
+        delete.triggered.connect(self.note_delete)
+        edit.triggered.connect(self.note_redaction)
+
+        self.context_menu.addAction(delete)
+        self.context_menu.addAction(edit)
+
+        self.context_menu.exec(global_pos)
+
+
+    def note_delete(self):
+        pass
 
     def list_update(self):
         self.noteList.clear()
@@ -80,8 +64,15 @@ class Notes(QMainWindow, Ui_Notes):
         con.close()
 
     def note_creation(self):
-        self.note_window = NoteEdit()
-        self.note_window.exec()
+        dialog = NoteEdit()
+        dialog.exec()
+        print(dialog.note_save())
+
+    def note_redaction(self):
+        name = self.noteList.currentItem().text()
+        dialog = NoteEdit(name)
+        dialog.exec()
+
 
 
 def except_hook(cls, exception, traceback):
