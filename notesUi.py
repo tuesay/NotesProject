@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_Notes(object):
     def setupUi(self, Notes):
         Notes.setObjectName("Notes")
-        Notes.resize(400, 310)
+        Notes.resize(615, 470)
         Notes.setMinimumSize(QtCore.QSize(400, 310))
         Notes.setMouseTracking(False)
         self.centralwidget = QtWidgets.QWidget(parent=Notes)

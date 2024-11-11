@@ -74,6 +74,7 @@ class NoteEdit(QDialog, Ui_noteEdit):
                 con.close()
 
         self.close()
+        print(f'saved note: {name}')
 
     def note_cancel(self):
         self.close()
