@@ -23,10 +23,13 @@ class Notes(QMainWindow, Ui_Notes):
         self.tag_update()
 
     def initUi(self):
-        self.noteList.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.searchLine.textChanged.connect(self.list_update)
+        self.sortBy.currentTextChanged.connect(self.list_update)
+        self.tagSelect.currentIndexChanged.connect(self.list_update)
 
         self.noteList.doubleClicked.connect(self.note_redaction)
-        self.tagSelect.currentIndexChanged.connect(self.list_update)
+
+        self.noteList.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
 
         self.noteList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.noteList.customContextMenuRequested.connect(self.show_list_context)
@@ -40,12 +43,25 @@ class Notes(QMainWindow, Ui_Notes):
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
+        search = f'%{self.searchLine.text()}%'
         tag = self.tagSelect.currentText()
-        if tag == 'Без тега':
-            ids = cur.execute("SELECT id FROM notes").fetchall()
+
+        if self.searchLine.text() == '':
+            if tag == 'Без тега':
+                ids = cur.execute("SELECT id FROM notes").fetchall()
+            else:
+                ids = cur.execute("SELECT id FROM notes WHERE tag_id = "
+                                  "(SELECT tag_id FROM tags WHERE tag_name = ?)", (tag, )).fetchall()
         else:
-            ids = cur.execute("SELECT id FROM notes WHERE tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)",
-                              (tag, )).fetchall()
+            if tag == 'Без тега':
+                ids = cur.execute("SELECT id FROM notes WHERE name LIKE ?", (search, )).fetchall()
+            else:
+                ids = cur.execute("SELECT id FROM notes WHERE name LIKE ? AND tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)", (search, tag)).fetchall()
+
+        if self.sortBy.currentText() == 'Алфавит':
+            self.noteList.setSortingEnabled(True)
+        else:
+            self.noteList.setSortingEnabled(False)
 
         for i in ids[::-1]:
             name = cur.execute("SELECT name FROM notes WHERE id = ?", (i[0], )).fetchone()[0]
@@ -53,6 +69,34 @@ class Notes(QMainWindow, Ui_Notes):
             self.noteList.addItem(QListWidgetItem(f'{name}'))
 
         con.close()
+
+    def tag_update(self):
+        self.tagSelect.clear()
+
+        con = sqlite3.connect('note.sqlite')
+        cur = con.cursor()
+
+        self.tagSelect.addItem('Без тега')
+
+        tags = cur.execute("SELECT tag_name FROM tags").fetchall()
+        for i in tags:
+            self.tagSelect.addItem(i[0])
+
+    def duplicate_handle_tag(self, name):
+        con = sqlite3.connect('note.sqlite')
+        cur = con.cursor()
+
+        name = name + '~'
+        name_tuple = (name,)
+        duplicate = cur.execute("SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
+        while name_tuple == duplicate:
+            name = name + '~'
+            name_tuple = (name,)
+            duplicate = cur.execute("SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
+
+        con.close()
+
+        return name
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return and self.noteList.currentItem() is not None:
@@ -73,8 +117,10 @@ class Notes(QMainWindow, Ui_Notes):
             items = self.noteList.selectedItems()
 
             con = sqlite3.connect('note.sqlite')
-            tag_id = con.cursor().execute("SELECT tag_id FROM notes WHERE name = ?", (name, )).fetchone()[0]
-            tag_name = con.cursor().execute("SELECT tag_name FROM tags WHERE tag_id = ?", (tag_id, )).fetchone()
+            tag_id = con.cursor().execute("SELECT tag_id FROM notes WHERE name = ?",
+                                          (name, )).fetchone()[0]
+            tag_name = con.cursor().execute("SELECT tag_name FROM tags WHERE tag_id = ?",
+                                            (tag_id, )).fetchone()
             con.close()
 
             context_menu = QMenu()
@@ -101,11 +147,14 @@ class Notes(QMainWindow, Ui_Notes):
 
             if len(items) > 1:
                 delete = QAction('Удалить заметки', self)
-                tag_unassign = QAction('Отсоединить заметки от тегов', self)
+                tag_assign = QAction('Присвоить заметкам тег')
+                tag_unassign = QAction('Отсоединить заметки от тега', self)
 
                 delete.triggered.connect(self.note_delete)
+                tag_assign.triggered.connect(self.tag_assign)
                 tag_unassign.triggered.connect(self.tag_unassign)
-                context_menu.addActions([delete, tag_unassign])
+                context_menu.addActions([delete, tag_assign, tag_unassign])
+
             else:
                 if tag_id is None:
                     context_menu.addAction(tag_name)
@@ -133,16 +182,6 @@ class Notes(QMainWindow, Ui_Notes):
 
         context_menu.exec(global_pos)
 
-    def tag_update(self):
-        self.tagSelect.clear()
-
-        con = sqlite3.connect('note.sqlite')
-        cur = con.cursor()
-        self.tagSelect.addItem('Без тега')
-        tags = cur.execute("SELECT tag_name FROM tags").fetchall()
-        for i in tags:
-            self.tagSelect.addItem(i[0])
-
     def tag_creation(self):
         name, ok_pressed = QInputDialog.getText(self, "Введите название тега",
                                                 "Название тега:")
@@ -156,13 +195,13 @@ class Notes(QMainWindow, Ui_Notes):
                 cur.execute("INSERT INTO tags(tag_name) VALUES(?)", (name,))
 
             except sqlite3.IntegrityError:
-                name = name + '~'
+                name = self.duplicate_handle_tag(name)
 
                 cur.execute("INSERT INTO tags(tag_name) VALUES(?)", (name,))
 
-            con.commit()
-            con.close()
-            self.tag_update()
+        con.commit()
+        con.close()
+        self.tag_update()
 
     def tag_assign(self):
         con = sqlite3.connect('note.sqlite')
@@ -175,9 +214,15 @@ class Notes(QMainWindow, Ui_Notes):
 
         if ok_pressed:
             name = self.noteList.currentItem().text()
-            cur.execute("UPDATE notes SET tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?) WHERE name = ?",
-                        (tag, name))
-            con.commit()
+            items = self.noteList.selectedItems()
+            if len(items) > 1:
+                for name in items:
+                    cur.execute("UPDATE notes SET tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?) "
+                                "WHERE name = ?", (tag, name.text()))
+            else:
+                cur.execute("UPDATE notes SET tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)"
+                            " WHERE name = ?", (tag, name))
+        con.commit()
         con.close()
 
 
@@ -238,14 +283,19 @@ class Notes(QMainWindow, Ui_Notes):
         print('creating a new note with a tag:', tag)
         dialog = NoteEdit(name=None, tag=tag)
         dialog.exec()
+
         self.list_update()
+        self.tag_update()
 
     def note_redaction(self):
         name = self.noteList.currentItem().text()
+
         print(f'redacting: {name}')
         dialog = NoteEdit(name)
         dialog.exec()
+
         self.list_update()
+        self.tag_update()
 
     def note_copy(self):
         pyperclip.copy(self.noteList.currentItem().text())
