@@ -48,5 +48,5 @@ class Ui_Notes(object):
         _translate = QtCore.QCoreApplication.translate
         Notes.setWindowTitle(_translate("Notes", "Заметки"))
         self.searchLine.setToolTip(_translate("Notes", "Поиск по имени"))
-        self.sortBy.setItemText(0, _translate("Notes", "Посл. изменение"))
+        self.sortBy.setItemText(0, _translate("Notes", "Недавно созданные"))
         self.sortBy.setItemText(1, _translate("Notes", "Алфавит"))

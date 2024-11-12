@@ -53,7 +53,7 @@
      <widget class="QComboBox" name="sortBy">
       <item>
        <property name="text">
-        <string>Посл. изменение</string>
+        <string>Недавно созданные</string>
        </property>
       </item>
       <item>
