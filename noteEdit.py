@@ -19,11 +19,11 @@ class NoteEdit(QDialog, Ui_noteEdit):
 
         self.initUi()
 
-
     def initUi(self):
         self.showImgPlace.clicked.connect(self.show_place)
 
-        self.tagSet.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tagSet.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
         self.tagSet.customContextMenuRequested.connect(self.show_tag_context)
 
         self.imageAdd.hide()
@@ -35,6 +35,8 @@ class NoteEdit(QDialog, Ui_noteEdit):
         self.update_data()
 
     def update_data(self):
+        # Функция отвечает за обновление данных уже существующей заметки и
+        # обновление существующих тегов в БД
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
@@ -46,12 +48,17 @@ class NoteEdit(QDialog, Ui_noteEdit):
         for i in tags:
             self.tagSet.addItem(i[0])
 
-        if self.name != None:
+        if self.name is not None:  # заполнение данных уже существующей заметки
             self.noteName.setText(self.name)
-            self.noteText.setText(cur.execute("SELECT text FROM notes WHERE name = ?",
-                                              (self.name,)).fetchone()[0])
-            tag = cur.execute("SELECT tag_name FROM tags WHERE tag_id = (SELECT tag_id FROM notes WHERE name = ?)",
-                              (self.name,)).fetchone()
+            self.noteText.setText(
+                cur.execute(
+                    "SELECT text FROM notes WHERE name = ?",
+                    (self.name,
+                     )).fetchone()[0])
+            tag = cur.execute(
+                "SELECT tag_name FROM tags WHERE tag_id = (SELECT tag_id FROM notes WHERE name = ?)",
+                (self.name,
+                 )).fetchone()
             if tag is None:
                 self.tagSet.setCurrentText('Без тега')
             else:
@@ -61,39 +68,44 @@ class NoteEdit(QDialog, Ui_noteEdit):
 
         con.close()
 
+    # обработка дубликатов имени заметки
     def duplicate_handle_notes(self, name):
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
         name = name + '~'
         name_tuple = (name,)
-        duplicate = cur.execute("SELECT name FROM notes WHERE name = ?", (name,)).fetchone()
+        duplicate = cur.execute(
+            "SELECT name FROM notes WHERE name = ?", (name,)).fetchone()
         while name_tuple == duplicate:
             name = name + '~'
             name_tuple = (name,)
-            duplicate = cur.execute("SELECT name FROM notes WHERE name = ?", (name,)).fetchone()
+            duplicate = cur.execute(
+                "SELECT name FROM notes WHERE name = ?", (name,)).fetchone()
 
         con.close()
 
         return name
 
-    def duplicate_handle_tag(self, name):
+    def duplicate_handle_tag(self, name):  # обработка дубликатов имени тега
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
         name = name + '~'
         name_tuple = (name,)
-        duplicate = cur.execute("SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
+        duplicate = cur.execute(
+            "SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
         while name_tuple == duplicate:
             name = name + '~'
             name_tuple = (name,)
-            duplicate = cur.execute("SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
+            duplicate = cur.execute(
+                "SELECT tag_name FROM tags WHERE tag_name = ?", (name,)).fetchone()
 
         con.close()
 
         return name
 
-    def show_tag_context(self, pos):
+    def show_tag_context(self, pos):  # контекстное меню для QComboBox
         global_pos = self.tagSet.mapToGlobal(pos)
 
         context_menu = QMenu()
@@ -109,7 +121,7 @@ class NoteEdit(QDialog, Ui_noteEdit):
 
         context_menu.exec(global_pos)
 
-    def show_place(self):
+    def show_place(self):  # in progress
         if self.showImgPlace.text() == '>>>':
             self.imageAdd.show()
             self.imageDisplay.show()
@@ -132,32 +144,39 @@ class NoteEdit(QDialog, Ui_noteEdit):
         cur = con.cursor()
         if self.name is None:
             try:
-                cur.execute("INSERT INTO notes(name, text, tag_id) "
-                            "VALUES(?, ?, (SELECT tag_id FROM tags WHERE tag_name = ?))", (name, text, tag))
+                cur.execute(
+                    "INSERT INTO notes(name, text, tag_id) "
+                    "VALUES(?, ?, (SELECT tag_id FROM tags WHERE tag_name = ?))", (name, text, tag))
 
                 con.commit()
                 con.close()
             except sqlite3.IntegrityError:
                 name = self.duplicate_handle_notes(name)
-                cur.execute("INSERT INTO notes(name, text, tag_id) "
-                            "VALUES(?, ?, (SELECT tag_id FROM tags WHERE tag_name = ?))", (name, text, tag))
+                cur.execute(
+                    "INSERT INTO notes(name, text, tag_id) "
+                    "VALUES(?, ?, (SELECT tag_id FROM tags WHERE tag_name = ?))", (name, text, tag))
 
                 con.commit()
                 con.close()
         else:
             try:
-                cur.execute("UPDATE notes SET name = ?, text = ?, "
-                            "tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?) WHERE name = ?",
-                            (name, text, tag, self.name))
+                cur.execute(
+                    "UPDATE notes SET name = ?, text = ?, "
+                    "tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?) WHERE name = ?",
+                    (name,
+                     text,
+                     tag,
+                     self.name))
 
                 con.commit()
                 con.close()
             except sqlite3.IntegrityError:
                 name = self.duplicate_handle_notes(name)
 
-                cur.execute("UPDATE notes SET name = ?, text = ?, "
-                            "tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)"
-                            " WHERE name = ?", (name, text, tag, self.name))
+                cur.execute(
+                    "UPDATE notes SET name = ?, text = ?, "
+                    "tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)"
+                    " WHERE name = ?", (name, text, tag, self.name))
 
                 con.commit()
                 con.close()
@@ -169,6 +188,8 @@ class NoteEdit(QDialog, Ui_noteEdit):
         self.close()
 
     def tag_creation(self):
+        # Возможно создать тег при создании и/или редактировании заметки. Это улучшает возможный
+        # пользовательский опыт
         name, ok_pressed = QInputDialog.getText(self, "Введите название тега",
                                                 "Название тега:")
 
@@ -190,7 +211,7 @@ class NoteEdit(QDialog, Ui_noteEdit):
 
         self.update_data()
 
-    def tag_delete(self):
+    def tag_delete(self):  # удаление тега
         tag_name = self.tagSet.currentText()
 
         con = sqlite3.connect('note.sqlite')
