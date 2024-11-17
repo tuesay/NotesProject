@@ -17,10 +17,41 @@ class Notes(QMainWindow, Ui_Notes):
         super().__init__()
         self.setupUi(self)
 
+        self.db_con()
+
         self.initUi()
 
         self.list_update()
         self.tag_update()
+
+    def db_con(self):
+        con = sqlite3.connect('note.sqlite')
+        cur = con.cursor()
+
+        try:
+            cur.execute("""CREATE TABLE tags (
+        tag_id   INTEGER PRIMARY KEY AUTOINCREMENT
+                         UNIQUE
+                         NOT NULL,
+        tag_name TEXT    NOT NULL
+                         UNIQUE
+    );
+    """)
+            cur.execute("""CREATE TABLE notes (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT
+                        UNIQUE
+                        NOT NULL,
+        name    TEXT    NOT NULL
+                        UNIQUE,
+        text    TEXT,
+        imgPath TEXT,
+        tag_id  INTEGER REFERENCES tags (tag_id) 
+    );
+    """)
+            con.commit()
+        except sqlite3.OperationalError:
+            pass
+        con.close()
 
     def initUi(self):
         self.searchLine.textChanged.connect(self.list_update)
