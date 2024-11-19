@@ -23,7 +23,6 @@ class NoteEdit(QDialog, Ui_noteEdit):
         self.image_setup()
 
     def initUi(self):
-
         self.showImgPlace.clicked.connect(self.show_place)
         self.imageAdd.clicked.connect(self.img_add)
         self.imageDel.clicked.connect(self.img_del)
@@ -280,20 +279,21 @@ class NoteEdit(QDialog, Ui_noteEdit):
         self.update_data()
 
     def image_setup(self):
-
-        if self.name is not None:
             con = sqlite3.connect('note.sqlite')
             cur = con.cursor()
 
             image_data = cur.execute("SELECT img_data FROM notes WHERE name = ?",
                                             (self.name,)).fetchone()
 
-            if image_data[0] is not None:
-                self.img_data = image_data[0]
+            if self.name is not None:
+                if image_data[0] is not None:
+                    self.img_data = image_data[0]
 
-                self.showImgPlace.setText('<<<')
+                    self.showImgPlace.setText('<<<')
 
-                self.img_display()
+                    self.img_display()
+                else:
+                    self.img_data = None
 
             else:
                 self.img_data = None
@@ -301,44 +301,48 @@ class NoteEdit(QDialog, Ui_noteEdit):
             con.close()
 
     def img_add(self):
-        try:
-            img = QFileDialog.getOpenFileName(self, 'Добавить изображение', '',
+
+        img = QFileDialog.getOpenFileName(self, 'Добавить изображение', '',
                                               'Изображение (*.jpg);;Изображение (*.png)')[0]
+        try:
+            with open(img, 'rb') as f:
+                self.img_data = f.read()
+                self.img_display()
+
         except FileNotFoundError:
             print('file not exist')
 
-        with open(img, 'rb') as f:
-            self.img_data = f.read()
-            self.img_display()
-
     def img_del(self):
         self.imageDisplay.clear()
+        self.img_data = None
 
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
-        try:
-            cur.execute("UPDATE notes SET image_data = ?", (None, ))
-        except sqlite3.OperationalError:
-            pass
+        # try:
+        cur.execute("UPDATE notes SET img_data = NULL WHERE name = ?", (self.name,))
+        #
+        # except sqlite3.OperationalError:
+        #     pass
 
         con.commit()
         con.close()
 
     def img_display(self):
-        pixmap = QPixmap()
+        if self.img_data is not None:
+            pixmap = QPixmap()
 
-        img_data_qbyte = QByteArray(bytes(self.img_data))
+            img_data_qbyte = QByteArray(bytes(self.img_data))
 
-        pixmap.loadFromData(img_data_qbyte)
+            pixmap.loadFromData(img_data_qbyte)
 
-        pixmap = pixmap.scaled(int(pixmap.width() * 0.2), int(pixmap.height() * 0.2),
-                               Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pixmap = pixmap.scaled(int(pixmap.width() * 0.2), int(pixmap.height() * 0.2),
+                                   Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
-        self.imageDisplay.show()
-        self.imageAdd.show()
-        self.imageDel.show()
+            self.imageDisplay.show()
+            self.imageAdd.show()
+            self.imageDel.show()
 
-        self.imageDisplay.setScaledContents(False)
-        self.imageDisplay.setFixedSize(pixmap.width(), pixmap.height())
-        self.imageDisplay.setPixmap(pixmap)
+            self.imageDisplay.setScaledContents(False)
+            self.imageDisplay.setFixedSize(pixmap.width(), pixmap.height())
+            self.imageDisplay.setPixmap(pixmap)
 
