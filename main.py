@@ -1,6 +1,5 @@
 import sqlite3
 import sys
-
 import pyperclip
 
 from PyQt6.QtCore import Qt
@@ -9,7 +8,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QListWidgetItem, QMenu, Q
     QListWidget
 
 from noteEdit import NoteEdit
-from notesUi import Ui_Notes
+from mainUi import Ui_Notes
 
 
 class Notes(QMainWindow, Ui_Notes):
@@ -17,14 +16,15 @@ class Notes(QMainWindow, Ui_Notes):
         super().__init__()
         self.setupUi(self)
 
-        self.db_con()
+        self.first_launch()
 
         self.initUi()
 
         self.list_update()
         self.tag_update()
 
-    def db_con(self):
+    def first_launch(self):
+
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
@@ -44,7 +44,7 @@ class Notes(QMainWindow, Ui_Notes):
         name    TEXT    NOT NULL
                         UNIQUE,
         text    TEXT,
-        imgPath TEXT,
+        img_data TEXT,
         tag_id  INTEGER REFERENCES tags (tag_id) 
     );
     """)
@@ -83,14 +83,14 @@ class Notes(QMainWindow, Ui_Notes):
         tag = self.tagSelect.currentText()
 
         if self.searchLine.text() == '':  # поиск по имени заметки
-            if tag == 'Без тега':
+            if tag == 'Все':
                 ids = cur.execute("SELECT id FROM notes").fetchall()
             else:
                 ids = cur.execute(
                     "SELECT id FROM notes WHERE tag_id = "
                     "(SELECT tag_id FROM tags WHERE tag_name = ?)", (tag, )).fetchall()
         else:
-            if tag == 'Без тега':
+            if tag == 'Все':
                 ids = cur.execute(
                     "SELECT id FROM notes WHERE name LIKE ?", (search, )).fetchall()
             else:
@@ -109,6 +109,8 @@ class Notes(QMainWindow, Ui_Notes):
 
             self.noteList.addItem(QListWidgetItem(f'{name}'))
 
+        self.noteCount.setText(f'Количество заметок: {len(ids)}')
+
         con.close()
 
     def tag_update(self):  # обновляет теги в QComboBox
@@ -117,7 +119,7 @@ class Notes(QMainWindow, Ui_Notes):
         con = sqlite3.connect('note.sqlite')
         cur = con.cursor()
 
-        self.tagSelect.addItem('Без тега')
+        self.tagSelect.addItem('Все')
 
         tags = cur.execute("SELECT tag_name FROM tags").fetchall()
         for i in tags:
@@ -146,6 +148,9 @@ class Notes(QMainWindow, Ui_Notes):
     def keyPressEvent(self, event):  # открытие заметки с помощью клавиши Enter
         if event.key() == Qt.Key.Key_Return and self.noteList.currentItem() is not None:
             self.note_redaction()
+
+        elif event.key() == Qt.Key.Key_F1:
+            pass
 
     # функция для обработки контекстного меню для QListWidget
     def show_list_context(self, pos):
@@ -191,7 +196,7 @@ class Notes(QMainWindow, Ui_Notes):
 
             delete.triggered.connect(self.note_delete)
             edit.triggered.connect(self.note_redaction)
-            copy.triggered.connect(self.note_copy)
+            copy.triggered.connect(lambda: pyperclip.copy(self.noteList.currentItem().text()))
             tag_assign.triggered.connect(self.tag_assign)
             tag_unassign.triggered.connect(self.tag_unassign)
 
@@ -347,6 +352,8 @@ class Notes(QMainWindow, Ui_Notes):
         self.list_update()
         self.tag_update()
 
+        self.tagSelect.setCurrentText(dialog.tag_return())
+
     def note_redaction(self):
         name = self.noteList.currentItem().text()
 
@@ -358,8 +365,7 @@ class Notes(QMainWindow, Ui_Notes):
         self.list_update()
         self.tag_update()
 
-    def note_copy(self):  # копирование имени заметки
-        pyperclip.copy(self.noteList.currentItem().text())
+        self.tagSelect.setCurrentText(dialog.note_save())
 
 
 def except_hook(cls, exception, traceback):
